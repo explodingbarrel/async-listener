@@ -141,7 +141,10 @@ if (fs.ftruncate) wrap(fs, 'ftruncate', activator);
 
 // Wrap zlib streams
 var zProto = Object.getPrototypeOf(require('zlib').Deflate.prototype);
-wrap(zProto, "_transform", activator);
+if(zProto._transform) {
+	wrap(zProto, "_transform", activator);
+}
+
 
 // Wrap Crypto
 var crypto;
