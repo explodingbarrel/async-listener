@@ -35,9 +35,16 @@ wrap(net.Server.prototype, '_listen2', function (original) {
     this.on('connection', function (socket) {
       socket._handle.onread = wrapCallback(socket._handle.onread);
     });
-    var result = original.apply(this, arguments);
-    this._handle.onconnection = wrapCallback(this._handle.onconnection);
-    return result;
+
+    try {
+      return original.apply(this, arguments);
+    }
+    finally {
+      // the handle will only not be set in cases where there has been an error
+      if (this._handle && this._handle.onconnection) {
+        this._handle.onconnection = wrapCallback(this._handle.onconnection);
+      }
+    }
   };
 });
 
@@ -68,7 +75,7 @@ var asynchronizers = [
 if (global.setImmediate) asynchronizers.push('setImmediate');
 
 massWrap(
-  [global, require('timers')],
+  require('timers'),
   asynchronizers,
   activatorFirst
 );
@@ -140,11 +147,27 @@ if (fs.lchmod) wrap(fs, 'lchmod', activator);
 if (fs.ftruncate) wrap(fs, 'ftruncate', activator);
 
 // Wrap zlib streams
-var zProto = Object.getPrototypeOf(require('zlib').Deflate.prototype);
-if(zProto._transform) {
-	wrap(zProto, "_transform", activator);
+var zlib;
+try { zlib = require('zlib'); } catch (err) { }
+if (zlib && zlib.Deflate && zlib.Deflate.prototype) {
+  var proto = Object.getPrototypeOf(zlib.Deflate.prototype);
+  if (proto._transform) {
+    // streams2
+    wrap(proto, "_transform", activator);
+  }
+  else if (proto.write && proto.flush && proto.end) {
+    // plain ol' streams
+    massWrap(
+      proto,
+      [
+        'write',
+        'flush',
+        'end'
+      ],
+      activator
+    );
+  }
 }
-
 
 // Wrap Crypto
 var crypto;

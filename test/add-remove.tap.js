@@ -3,38 +3,37 @@
 var test = require('tap').test;
 
 test("async listener lifecycle", function (t) {
-  t.plan(7);
+  t.plan(8);
 
-  if (process.addAsyncListener) {
-    t.fail("this package is meant nodes without core support for async listeners");
-    return t.end();
-  }
+  if (!process.addAsyncListener) require('../index.js');
 
-  require('../index.js');
+  t.ok(process.createAsyncListener, "can create async listeners");
+  var counted = 0;
+  var listener = process.createAsyncListener(
+    function () { counted++; },
+    {
+      before : function () {},
+      after  : function () {},
+      error  : function () {}
+    },
+    Object.create(null)
+  );
 
   t.ok(process.addAsyncListener, "can add async listeners");
-
-  var listener;
   t.doesNotThrow(function () {
-    listener = process.addAsyncListener(
-      function () {},
-      {before : function () {}, after : function () {}}
-    );
+    listener = process.addAsyncListener(listener);
   }, "adding does not throw");
 
   t.ok(listener, "have a listener we can later remove");
 
   t.ok(process.removeAsyncListener, "can remove async listeners");
-
   t.doesNotThrow(function () {
     process.removeAsyncListener(listener);
   }, "removing does not throw");
 
-  t.throws(function () {
+  t.doesNotThrow(function () {
     process.removeAsyncListener(listener);
-  }, "removing the same listener twice throws");
+  }, "failing remove does not throw");
 
-  t.throws(function () {
-    process.removeAsyncListener(null);
-  }, "removing a nonexistent listener throws");
+  t.equal(counted, 0, "didn't hit any async functions");
 });
